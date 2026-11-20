@@ -41,3 +41,29 @@ print(f"Удалено пустых строк: {n0 - len(df) - n_dup}, явны
 text_cols = df.select_dtypes(include=["object", "string"]).columns
 for c in text_cols:
     df[c] = df[c].astype("string").str.strip()
+
+
+# --- Глубокая очистка ---
+
+# Исправление сдвинутых строк
+shifted = df["fuel_type"].isin(["1,6", "2"])
+df.loc[shifted, "transmission"] = df.loc[shifted, "engine_volume"]
+df.loc[shifted, "engine_volume"] = df.loc[shifted, "fuel_type"]
+df.loc[shifted, "fuel_type"] = pd.NA
+print("Исправлено сдвинутых строк:", shifted.sum())
+
+# Замена названий стран на ALPHA-3
+country_map = {
+    "Республика Казахстан": "KAZ", "Российская Федерация": "RUS",
+    "Япония": "JPN", "Турция": "TUR", "Таиланд": "THA", "США": "USA",
+    "Германия": "DEU", "UK": "GBR", "Китай": "CHN", "Узбекистан": "UZB",
+    "Австрия": "AUT", "Швеция": "SWE", "Корея": "KOR", "Нидерланды": "NLD",
+    "Испания": "ESP", "Польша": "POL", "Бельгия": "BEL", "Венгрия": "HUN",
+    "Белоруссия": "BLR",
+}
+df["country"] = df["country"].map(country_map)
+
+# Приведение вида топлива к F / D / E / HYB
+fuel_map = {"бензин": "F", "дизель": "D", "электро": "E",
+            "электричество": "E", "гибрид": "HYB"}
+df["fuel_type"] = df["fuel_type"].str.lower().map(fuel_map)
