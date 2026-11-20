@@ -131,3 +131,44 @@ df["sale_date"] = (pd.to_datetime(dict(year=df["year"],
                                        month=df["month"].map(months), day=1))
                    + pd.offsets.MonthEnd(0))
 df = df.drop(columns=["year", "month"])
+
+# Объединение разных написаний одной компании
+company_map = {
+    "Mercur Autos": "Mercur Auto",
+    "Автокапитал": "Autokapital",
+    "Каспиан Моторс": "Caspian Motors",
+    "ММС Рус": "MMC RUS",
+    "Хино Моторс Казахстан": "Hino Motors",
+    "Равон Моторс Казахстан": "Ravon Motors Kazakhstan",
+    "Ravon Motors Kazakstan": "Ravon Motors Kazakhstan",
+    'ТОО "Eurasia Motor Zhaik"': "Eurasia Motor Zhaik",
+}
+df["company"] = df["company"].replace(company_map)
+
+# Чистка года выпуска
+df["model_year"] = pd.to_numeric(
+    df["model_year"].str.replace(r"\s+", "", regex=True), errors="coerce"
+).astype("Int64")
+
+# Приведение объёма двигателя к числу
+def parse_volume(x):
+    if pd.isna(x):
+        return np.nan
+    s = str(x).lower()
+    if "л.с" in s or "kwh" in s:            # мощность или ёмкость батареи, а не объём
+        return np.nan
+    m = re.match(r"\s*(\d+[.,]?\d*)", s)
+    if not m:
+        return np.nan                         # "AT", "MT", "#Н/Д"
+    v = float(m.group(1).replace(",", "."))
+    return round(v, 1) if v > 0 else np.nan
+
+df["engine_volume"] = df["engine_volume"].apply(parse_volume)
+
+# Исправление Chevrolet Niva (значения 2x,7 появились из-за автозаполнения в Excel,
+# реальный объём всех Niva - 1.7 л)
+niva = (df["brand"] == "Chevrolet") & (df["model"] == "Niva")
+df.loc[niva, "engine_volume"] = 1.7
+
+# У электромобилей объёма нет
+df.loc[df["fuel_type"] == "E", "engine_volume"] = np.nan
