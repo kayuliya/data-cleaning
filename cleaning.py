@@ -1,4 +1,7 @@
+import re
+
 import pandas as pd
+import numpy as np
 
 INPUT_PATH = "autokz2019.csv"
 OUTPUT_PATH = "autokz2019_clean.csv"
@@ -67,3 +70,41 @@ df["country"] = df["country"].map(country_map)
 fuel_map = {"бензин": "F", "дизель": "D", "электро": "E",
             "электричество": "E", "гибрид": "HYB"}
 df["fuel_type"] = df["fuel_type"].str.lower().map(fuel_map)
+
+# Приведение типа привода к 4WD / 2WD / FWD / RWD
+def clean_drive(x):
+    if pd.isna(x):
+        return np.nan
+    s = x.lower().replace(" ", "")
+    s = s.replace("х", "x")  # кириллическая "х" в латинскую
+    if s in {"4wd", "awd", "полный", "quattro", "4motion", "4x4"}:
+        return "4WD"
+    if s in {"ff", "fwd", "передний", "передний(ff)"}:
+        return "FWD"
+    if s in {"rwd", "задний"}:
+        return "RWD"
+    if s in {"2wd"} or s.startswith("4x2"):
+        return "2WD"   # привод на одну ось без уточнения
+    return np.nan
+
+df["drive_type"] = df["drive_type"].apply(clean_drive)
+
+# Приведение коробки передач к "Автомат" / "Механика"
+cyr2lat = str.maketrans("АВЕКМНОРСТХ", "ABEKMHOPCTX")
+
+def clean_transmission(x):
+    if pd.isna(x):
+        return np.nan
+    s = x.upper().translate(cyr2lat).replace(" ", "")
+    if s in {"0", "#Н/Д", "4WD", "ПЕРЕДНИЙ", "TDI", ""}:
+        return np.nan                       # значения не про коробку
+    if "AMT" in s:
+        return "Автомат"                    # роботизированная - тоже без педали сцепления
+    if re.search(r"(MT|M/T|MKP|MEX)", s) or re.fullmatch(r"\dM", s):
+        return "Механика"
+    if re.search(r"(AT|A/T|AKP|CVT|DSG|DCT|PDK|TRONIC|POWERSHIFT|PEДУКТОР|РЕДУКТОР)", s) \
+            or re.fullmatch(r"\d{1,2}A?(-СТУП.*)?", s) or s.endswith("AKPP"):
+        return "Автомат"
+    return np.nan
+
+df["transmission"] = df["transmission"].apply(clean_transmission)
