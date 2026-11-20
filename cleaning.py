@@ -172,3 +172,46 @@ df.loc[niva, "engine_volume"] = 1.7
 
 # У электромобилей объёма нет
 df.loc[df["fuel_type"] == "E", "engine_volume"] = np.nan
+
+# Заполнение пропусков в топливе (берём моду по модели, только если она встречается в >= 90% строк)
+def fill_by_model(frame, col, threshold=0.9):
+    def mode_if_dominant(s):
+        vc = s.value_counts(normalize=True)
+        return vc.index[0] if len(vc) and vc.iloc[0] >= threshold else np.nan
+    mapping = frame.dropna(subset=[col]).groupby(["brand", "model"])[col].agg(mode_if_dominant)
+    keys = list(zip(frame["brand"], frame["model"]))
+    filled = pd.Series([mapping.get(k, np.nan) for k in keys], index=frame.index)
+    return frame[col].fillna(filled)
+
+df["fuel_type"] = fill_by_model(df, "fuel_type")
+
+# Приведение региона и области к единому виду, где каждое слово с заглавной буквы
+df["region"] = df["region"].str.lower().str.title()
+df["oblast"] = (df["oblast"].str.replace(r"^г\.\s*", "город ", regex=True)
+                            .str.replace("Экспорт область", "экспорт", regex=False)
+                            .str.lower().str.title())
+
+# Повторная проверка дубликатов уже после унификации написаний
+n_dup2 = df.duplicated().sum()
+df = df.drop_duplicates().reset_index(drop=True)
+print("Дубликатов после очистки:", n_dup2)
+
+
+# Настройка финальных типов столбцов
+cat_cols = ["fuel_type", "transmission", "drive_type", "segment_2013", "class_2013"]
+for c in cat_cols:
+    df[c] = df[c].astype("category")
+df["sale_date"] = pd.to_datetime(df["sale_date"])
+
+# Выставление порядка столбцов
+df = df[["sale_date", "company", "brand", "model", "model_year", "country",
+         "fuel_type", "engine_volume", "transmission", "drive_type", "region",
+         "oblast", "segment_2013", "class_2013", "quantity", "price_usd",
+         "total_usd", "is_return", "is_bulk"]]
+
+print("\nИтоговый размер:", df.shape)
+print(df.dtypes)
+print("Пропуски:\n", df.isna().sum())
+
+df.to_csv(OUTPUT_PATH, index=False, encoding="utf-8-sig")
+print("Сохранено:", OUTPUT_PATH)
