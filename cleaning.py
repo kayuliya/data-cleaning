@@ -108,3 +108,26 @@ def clean_transmission(x):
     return np.nan
 
 df["transmission"] = df["transmission"].apply(clean_transmission)
+
+# Приведение числовых столбцов к числам
+for c in ["quantity", "price_usd", "total_usd"]:
+    df[c] = pd.to_numeric(df[c], errors="coerce")
+
+# Удаление строк без количества (сумма = 0, значит это не продажи)
+bad = df["quantity"].isna()
+print("Удалено строк без количества (сумма = 0):", bad.sum())
+df = df[~bad].copy()
+
+# Возвраты (quantity < 0) и оптовые партии (> 10 шт. = выше 99-го перцентиля)
+df["is_return"] = df["quantity"] < 0
+df["is_bulk"] = df["quantity"] > 10
+print("Возвратов:", df["is_return"].sum(), "| оптовых партий:", df["is_bulk"].sum())
+
+# Дата продажи = последний день месяца
+months = {"Январь": 1, "Февраль": 2, "Март": 3, "Апрель": 4, "Май": 5,
+          "Июнь": 6, "Июль": 7, "Август": 8, "Сентябрь": 9,
+          "Октябрь": 10, "Ноябрь": 11, "Декабрь": 12}
+df["sale_date"] = (pd.to_datetime(dict(year=df["year"],
+                                       month=df["month"].map(months), day=1))
+                   + pd.offsets.MonthEnd(0))
+df = df.drop(columns=["year", "month"])
