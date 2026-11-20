@@ -226,3 +226,11 @@ fig, ax = plt.subplots(figsize=(8, 4))
 mm["units"].plot(marker="o", ax=ax)
 ax.set(title="Mercur Auto: продажи по месяцам, шт.", xlabel="Месяц 2019", ylabel="шт.")
 save("12_mercur_monthly")
+
+# Проверка устойчивости: доля Mercur в исходных данных (до удаления дубликатов)
+raw = pd.read_csv("autokz2019.csv", sep=";", decimal=",")
+raw["c"] = raw["Компания"].str.strip().replace({"Mercur Autos": "Mercur Auto"})
+rq = raw[raw["Количество"].notna()]
+print("\nДоля Mercur в сырых данных (шт.):",
+      pct(rq[rq.c == ME]["Количество"].sum() / rq["Количество"].sum() * 100),
+      "| (выручка):", pct(rq[rq.c == ME]["Продажа, USD"].sum() / rq["Продажа, USD"].sum() * 100))
